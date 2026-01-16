@@ -8,97 +8,134 @@ import (
 	"github.com/crazyuploader/vmstats/internal/stats"
 )
 
+// Styles using our color palette
 var (
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("86")).
-			Background(lipgloss.Color("236")).
+			Foreground(ColorText).
+			Background(ColorPrimary).
 			Padding(0, 1)
 
 	headerStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("220"))
+			Foreground(ColorSecondary)
 
 	normalStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("252"))
+			Foreground(ColorText)
+
+	mutedStyle = lipgloss.NewStyle().
+			Foreground(ColorTextMuted)
 
 	errorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196")).
+			Foreground(ColorDanger).
 			Bold(true)
 
 	boxStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("240")).
+			BorderForeground(ColorBorder).
 			Padding(1, 2)
+
+	vmListStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(ColorBorder).
+			Padding(0, 1).
+			Width(30)
+
+	selectedVMStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(ColorPrimary)
+
+	offlineMessageStyle = lipgloss.NewStyle().
+				Foreground(ColorTextMuted).
+				Italic(true).
+				Padding(1, 2)
 )
 
 func renderView(m Model) string {
 	var sb strings.Builder
 
 	if m.err != nil {
-		sb.WriteString(errorStyle.Render(fmt.Sprintf("Error: %v\n", m.err)))
-		sb.WriteString("\nPress 'q' to quit\n")
+		sb.WriteString(errorStyle.Render(fmt.Sprintf("⚠️  Error: %v\n", m.err)))
+		sb.WriteString(mutedStyle.Render("\nPress 'r' to retry, 'q' to quit\n"))
 		return sb.String()
 	}
 
 	if !m.initialized || len(m.allStats) == 0 {
-		sb.WriteString("Loading stats...\n")
+		sb.WriteString(mutedStyle.Render("⏳ Loading VM statistics...\n"))
 		return sb.String()
 	}
 
 	currentStats := &m.allStats[m.currentVM]
+	stateInfo := GetVMStateInfo(currentStats.State)
 
-	// Title with State
-	stateIcon := "❓"
-	stateText := "Unknown"
-	switch currentStats.State {
-	case 1:
-		stateIcon = "🟢"
-		stateText = "Running"
-	case 2: // Idle
-		stateIcon = "🌙"
-		stateText = "Idle"
-	case 3: // Paused
-		stateIcon = "⏸️"
-		stateText = "Paused"
-	case 5: // Shutoff
-		stateIcon = "🔴"
-		stateText = "Shutoff"
-	case 7: // PMSuspended
-		stateIcon = "💤"
-		stateText = "Suspended"
-	}
+	// Main layout: sidebar + content
+	sidebar := renderVMList(m)
+	content := renderMainContent(m, currentStats, stateInfo)
 
-	titleRaw := fmt.Sprintf(" %s %s - %s (%d/%d) ", stateIcon, stateText, currentStats.DomainName, m.currentVM+1, len(m.allStats))
-	title := titleStyle.Render(titleRaw)
-	sb.WriteString(title + "\n\n")
-
-	// If VM is shutoff, don't show metrics
-	if currentStats.State == 5 {
-		sb.WriteString(normalStyle.Render("  VM is currently shut off. Metrics are unavailable.") + "\n\n")
-	} else {
-		// Memory section
-		sb.WriteString(renderMemory(currentStats))
-		sb.WriteString("\n\n")
-
-		// CPU section
-		sb.WriteString(renderCPU(currentStats))
-		sb.WriteString("\n\n")
-
-		// Disk section
-		sb.WriteString(renderDisk(currentStats))
-		sb.WriteString("\n\n")
-	}
+	// Combine sidebar and content horizontally
+	mainView := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, "  ", content)
+	sb.WriteString(mainView)
+	sb.WriteString("\n\n")
 
 	// Help and Footer
 	helpView := m.help.ShortHelpView(m.keys.ShortHelp())
 	if m.showHelp {
 		helpView = m.help.FullHelpView(m.keys.FullHelp())
 	}
-	sb.WriteString(helpView + "\n")
+	sb.WriteString(mutedStyle.Render(helpView) + "\n")
 
 	footer := fmt.Sprintf("Last updated: %s", m.lastUpdate.Format("15:04:05"))
-	sb.WriteString(normalStyle.Render(footer))
+	sb.WriteString(mutedStyle.Render(footer))
+
+	return sb.String()
+}
+
+func renderVMList(m Model) string {
+	var sb strings.Builder
+	sb.WriteString(headerStyle.Render("📋 VMs") + "\n")
+
+	var vmItems []string
+	for i, vm := range m.allStats {
+		stateInfo := GetVMStateInfo(vm.State)
+		marker := "  "
+		style := normalStyle
+		if i == m.currentVM {
+			marker = "▶ "
+			style = selectedVMStyle
+		}
+		vmItem := fmt.Sprintf("%s%s %s", marker, stateInfo.Icon, vm.DomainName)
+		vmItems = append(vmItems, style.Render(vmItem))
+	}
+
+	content := strings.Join(vmItems, "\n")
+	return vmListStyle.Render(sb.String() + content)
+}
+
+func renderMainContent(m Model, currentStats *stats.VMStats, stateInfo VMStateInfo) string {
+	var sb strings.Builder
+
+	// Title with state
+	titleRaw := fmt.Sprintf(" %s %s • %s ", stateInfo.Icon, stateInfo.Text, currentStats.DomainName)
+	title := titleStyle.Render(titleRaw)
+	sb.WriteString(title + "\n\n")
+
+	// If VM is shutoff, show message instead of metrics
+	if currentStats.State == VMStateShutoff {
+		msg := offlineMessageStyle.Render("💤 This VM is currently shut off.\n   Metrics will appear when the VM is running.")
+		sb.WriteString(msg)
+		return sb.String()
+	}
+
+	// Memory section
+	sb.WriteString(renderMemory(currentStats))
+	sb.WriteString("\n\n")
+
+	// CPU section
+	sb.WriteString(renderCPU(currentStats))
+	sb.WriteString("\n\n")
+
+	// Disk section
+	sb.WriteString(renderDisk(currentStats))
 
 	return sb.String()
 }
@@ -108,22 +145,25 @@ func renderMemory(vmStats *stats.VMStats) string {
 
 	sb.WriteString(headerStyle.Render("💾 Memory") + "\n")
 
-	usedMB := (vmStats.BalloonStats.Current - vmStats.BalloonStats.Unused) / 1024
-	totalMB := vmStats.BalloonStats.Current / 1024
+	totalBytes := vmStats.BalloonStats.Current * 1024
+	usedBytes := (vmStats.BalloonStats.Current - vmStats.BalloonStats.Unused) * 1024
+	freeBytes := vmStats.BalloonStats.Unused * 1024
+	rssBytes := vmStats.BalloonStats.RSS * 1024
+
 	usagePercent := float64(0)
-	if totalMB > 0 {
-		usagePercent = float64(usedMB) / float64(totalMB) * 100
+	if totalBytes > 0 {
+		usagePercent = float64(usedBytes) / float64(totalBytes) * 100
 	}
 
 	memInfo := fmt.Sprintf(
-		"Total: %d MB | Used: %d MB | Free: %d MB | RSS: %d MB\n"+
-			"Usage: %.1f%% %s",
-		totalMB,
-		usedMB,
-		vmStats.BalloonStats.Unused/1024,
-		vmStats.BalloonStats.RSS/1024,
+		"Total: %s │ Used: %s │ Free: %s │ RSS: %s\n"+
+			"Usage: %s %.1f%%",
+		formatBytes(totalBytes),
+		formatBytes(usedBytes),
+		formatBytes(freeBytes),
+		formatBytes(rssBytes),
+		renderColorBar(usagePercent, 30),
 		usagePercent,
-		renderBar(usagePercent, 40),
 	)
 
 	sb.WriteString(boxStyle.Render(memInfo))
@@ -135,24 +175,31 @@ func renderCPU(vmStats *stats.VMStats) string {
 
 	sb.WriteString(headerStyle.Render("🖥️  CPU") + "\n")
 
+	if len(vmStats.VCPUStats) == 0 {
+		sb.WriteString(boxStyle.Render(mutedStyle.Render("No vCPU data available")))
+		return sb.String()
+	}
+
 	cpuInfo := fmt.Sprintf("vCPUs: %d\n\n", len(vmStats.VCPUStats))
 
-	cpuInfo += fmt.Sprintf("%-6s %-10s %-15s %-12s %-12s\n",
-		"vCPU", "State", "CPU Time (s)", "Exits", "I/O Exits")
-	cpuInfo += strings.Repeat("─", 70) + "\n"
+	cpuInfo += fmt.Sprintf("%-5s %-9s %-12s %-10s %-10s\n",
+		"ID", "State", "Time", "Exits", "I/O Exits")
+	cpuInfo += mutedStyle.Render(strings.Repeat("─", 50)) + "\n"
 
+	maxDisplay := 6
 	for i, vcpu := range vmStats.VCPUStats {
-		if i >= 6 { // Limit to first 6 vCPUs for display
+		if i >= maxDisplay {
+			cpuInfo += mutedStyle.Render(fmt.Sprintf("... and %d more vCPUs\n", len(vmStats.VCPUStats)-maxDisplay))
 			break
 		}
-		state := "running"
+		stateStr := lipgloss.NewStyle().Foreground(ColorSuccess).Render("running")
 		if vcpu.State == 0 {
-			state = "offline"
+			stateStr = mutedStyle.Render("offline")
 		}
-		cpuInfo += fmt.Sprintf("%-6d %-10s %-15d %-12d %-12d\n",
+		cpuInfo += fmt.Sprintf("%-5d %-9s %-12s %-10d %-10d\n",
 			vcpu.ID,
-			state,
-			vcpu.Time/1000000000, // Convert to seconds
+			stateStr,
+			formatDuration(vcpu.Time),
 			vcpu.Exits,
 			vcpu.IOExits,
 		)
@@ -168,7 +215,7 @@ func renderDisk(vmStats *stats.VMStats) string {
 	sb.WriteString(headerStyle.Render("💿 Disk") + "\n")
 
 	if len(vmStats.BlockStats) == 0 {
-		sb.WriteString(boxStyle.Render("No disk stats available"))
+		sb.WriteString(boxStyle.Render(mutedStyle.Render("No disk data available")))
 		return sb.String()
 	}
 
@@ -178,25 +225,24 @@ func renderDisk(vmStats *stats.VMStats) string {
 			continue
 		}
 
-		usedGB := float64(disk.Allocation) / (1024 * 1024 * 1024)
-		totalGB := float64(disk.Capacity) / (1024 * 1024 * 1024)
 		usagePercent := float64(0)
 		if disk.Capacity > 0 {
 			usagePercent = (float64(disk.Allocation) / float64(disk.Capacity)) * 100
 		}
 
-		readMB := float64(disk.ReadBytes) / (1024 * 1024)
-		writeMB := float64(disk.WriteBytes) / (1024 * 1024)
-
 		diskInfo += fmt.Sprintf(
-			"Device: %s\n"+
-				"Size: %.1f GB / %.1f GB (%.1f%%) %s\n"+
-				"Read: %.2f MB (%d ops) | Write: %.2f MB (%d ops)\n",
+			"📀 %s\n"+
+				"   Size: %s / %s %s %.1f%%\n"+
+				"   I/O:  ⬇ %s (%d ops) │ ⬆ %s (%d ops)\n",
 			disk.Name,
-			usedGB, totalGB, usagePercent,
-			renderBar(usagePercent, 30),
-			readMB, disk.ReadReqs,
-			writeMB, disk.WriteReqs,
+			formatBytes(disk.Allocation),
+			formatBytes(disk.Capacity),
+			renderColorBar(usagePercent, 20),
+			usagePercent,
+			formatBytes(disk.ReadBytes),
+			disk.ReadReqs,
+			formatBytes(disk.WriteBytes),
+			disk.WriteReqs,
 		)
 	}
 
@@ -204,7 +250,8 @@ func renderDisk(vmStats *stats.VMStats) string {
 	return sb.String()
 }
 
-func renderBar(percent float64, width int) string {
+// renderColorBar creates a progress bar with color based on thresholds
+func renderColorBar(percent float64, width int) string {
 	filled := int(percent / 100 * float64(width))
 	if filled > width {
 		filled = width
@@ -213,15 +260,56 @@ func renderBar(percent float64, width int) string {
 		filled = 0
 	}
 
-	bar := "["
+	// Determine color based on thresholds
+	var color lipgloss.Color
+	switch {
+	case percent >= ThresholdHigh:
+		color = ColorDanger
+	case percent >= ThresholdLow:
+		color = ColorWarning
+	default:
+		color = ColorSuccess
+	}
+
+	filledStyle := lipgloss.NewStyle().Foreground(color)
+	emptyStyle := lipgloss.NewStyle().Foreground(ColorBorder)
+
+	bar := ""
 	for i := 0; i < width; i++ {
 		if i < filled {
-			bar += "█"
+			bar += filledStyle.Render("█")
 		} else {
-			bar += "░"
+			bar += emptyStyle.Render("░")
 		}
 	}
-	bar += "]"
 
-	return bar
+	return "[" + bar + "]"
+}
+
+// formatBytes converts bytes to human-readable string
+func formatBytes(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+// formatDuration converts nanoseconds to human-readable duration
+func formatDuration(ns int64) string {
+	seconds := ns / 1_000_000_000
+	if seconds < 60 {
+		return fmt.Sprintf("%ds", seconds)
+	}
+	minutes := seconds / 60
+	if minutes < 60 {
+		return fmt.Sprintf("%dm%ds", minutes, seconds%60)
+	}
+	hours := minutes / 60
+	return fmt.Sprintf("%dh%dm", hours, minutes%60)
 }

@@ -12,31 +12,36 @@ import (
 type tickMsg time.Time
 
 type keyMap struct {
-	NextVM key.Binding
-	PrevVM key.Binding
-	Quit   key.Binding
-	Help   key.Binding
+	NextVM  key.Binding
+	PrevVM  key.Binding
+	Refresh key.Binding
+	Quit    key.Binding
+	Help    key.Binding
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.PrevVM, k.NextVM, k.Quit, k.Help}
+	return []key.Binding{k.PrevVM, k.NextVM, k.Refresh, k.Quit, k.Help}
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.PrevVM, k.NextVM},
-		{k.Quit, k.Help},
+		{k.Refresh, k.Quit, k.Help},
 	}
 }
 
 var keys = keyMap{
 	NextVM: key.NewBinding(
 		key.WithKeys("tab", "n", "l", "right"),
-		key.WithHelp("tab/n/→", "next VM"),
+		key.WithHelp("→/n", "next"),
 	),
 	PrevVM: key.NewBinding(
 		key.WithKeys("shift+tab", "p", "h", "left"),
-		key.WithHelp("shift+tab/p/←", "prev VM"),
+		key.WithHelp("←/p", "prev"),
+	),
+	Refresh: key.NewBinding(
+		key.WithKeys("r"),
+		key.WithHelp("r", "refresh"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),
@@ -44,7 +49,7 @@ var keys = keyMap{
 	),
 	Help: key.NewBinding(
 		key.WithKeys("?"),
-		key.WithHelp("?", "toggle help"),
+		key.WithHelp("?", "help"),
 	),
 }
 
@@ -60,20 +65,22 @@ type Model struct {
 	help        help.Model
 	showHelp    bool
 	initialized bool
+	refreshRate time.Duration
 }
 
-func InitialModel(domains []string, collector stats.StatsCollector) Model {
+func InitialModel(domains []string, collector stats.StatsCollector, refreshRate time.Duration) Model {
 	return Model{
-		domains:   domains,
-		collector: collector,
-		keys:      keys,
-		help:      help.New(),
+		domains:     domains,
+		collector:   collector,
+		keys:        keys,
+		help:        help.New(),
+		refreshRate: refreshRate,
 	}
 }
 
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
-		tickCmd(),
+		m.tickCmd(),
 		fetchStats(m.collector, m.domains),
 	)
 }
@@ -95,14 +102,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case key.Matches(msg, m.keys.Help):
 			m.showHelp = !m.showHelp
-		case msg.String() == "r":
-			// Manual refresh
+		case key.Matches(msg, m.keys.Refresh):
 			return m, fetchStats(m.collector, m.domains)
 		}
 
 	case tickMsg:
 		return m, tea.Batch(
-			tickCmd(),
+			m.tickCmd(),
 			fetchStats(m.collector, m.domains),
 		)
 
@@ -128,14 +134,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) View() string {
 	if m.quitting {
-		return "Goodbye!\n"
+		return ""
 	}
 
 	return renderView(m)
 }
 
-func tickCmd() tea.Cmd {
-	return tea.Tick(time.Second*2, func(t time.Time) tea.Msg {
+func (m Model) tickCmd() tea.Cmd {
+	return tea.Tick(m.refreshRate, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }

@@ -6,17 +6,32 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/crazyuploader/vmstats/internal/stats"
 	"github.com/crazyuploader/vmstats/internal/ui"
+	"github.com/crazyuploader/vmstats/internal/version"
 )
 
 func main() {
 	// Parse flags
 	domainsFlag := flag.String("domains", "", "Comma-separated list of libvirt domains to monitor (empty for all)")
 	logFile := flag.String("log", "vmstats.log", "Log file path")
+	refreshRate := flag.Int("refresh", ui.DefaultRefreshRate, "Refresh rate in seconds")
+	showVersion := flag.Bool("version", false, "Show version and exit")
 	flag.Parse()
+
+	// Handle version flag
+	if *showVersion {
+		fmt.Println(version.GetFullVersionString())
+		return
+	}
+
+	// Validate refresh rate
+	if *refreshRate < 1 {
+		*refreshRate = 1
+	}
 
 	// Parse domains
 	var domains []string
@@ -41,16 +56,17 @@ func main() {
 	log.SetOutput(f)
 
 	if len(domains) > 0 {
-		log.Printf("Starting vmstats for domains: %v", domains)
+		log.Printf("Starting vmstats for domains: %v (refresh: %ds)", domains, *refreshRate)
 	} else {
-		log.Printf("Starting vmstats for ALL domains")
+		log.Printf("Starting vmstats for ALL domains (refresh: %ds)", *refreshRate)
 	}
 
 	// Initialize collector
 	collector := stats.NewVirshCollector()
 
 	// Initialize Bubble Tea program
-	p := tea.NewProgram(ui.InitialModel(domains, collector), tea.WithAltScreen())
+	model := ui.InitialModel(domains, collector, time.Duration(*refreshRate)*time.Second)
+	p := tea.NewProgram(model, tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {
 		log.Printf("Error running program: %v", err)
