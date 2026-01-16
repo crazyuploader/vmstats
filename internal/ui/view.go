@@ -174,6 +174,10 @@ func renderMainContent(m Model, currentStats *stats.VMStats, stateInfo VMStateIn
 
 	// Disk section
 	sb.WriteString(renderDisk(currentStats, width, innerWidth, compact))
+	sb.WriteString(spacing)
+
+	// Network section
+	sb.WriteString(renderNetwork(currentStats, width, innerWidth, compact))
 
 	return sb.String()
 }
@@ -352,6 +356,45 @@ func renderColorBar(percent float64, width int) string {
 	}
 
 	return "[" + bar + "]"
+}
+
+func renderNetwork(vmStats *stats.VMStats, width, innerWidth int, compact bool) string {
+	var sb strings.Builder
+
+	sb.WriteString(headerStyle.Render("🌐 Network") + "\n")
+
+	style := boxStyle.Width(width)
+	if compact {
+		style = style.Padding(0, 1)
+	}
+
+	if len(vmStats.InterfaceStats) == 0 {
+		sb.WriteString(style.Render(mutedStyle.Render("No network data available")))
+		return sb.String()
+	}
+
+	var netInfo string
+	for _, net := range vmStats.InterfaceStats {
+		if net.Name == "" {
+			continue
+		}
+
+		netInfo += fmt.Sprintf(
+			"📡 %s\n"+
+				"   ⬇ Rx: %s (%d pkts) │ ❌ %d errs\n"+
+				"   ⬆ Tx: %s (%d pkts) │ ❌ %d errs\n",
+			net.Name,
+			formatBytes(net.RxBytes),
+			net.RxPackets,
+			net.RxErrs+net.RxDrop,
+			formatBytes(net.TxBytes),
+			net.TxPackets,
+			net.TxErrs+net.TxDrop,
+		)
+	}
+
+	sb.WriteString(style.Render(netInfo))
+	return sb.String()
 }
 
 // formatBytes converts bytes to human-readable string

@@ -2,13 +2,14 @@ package stats
 
 // VMStats holds all the statistics for a domain
 type VMStats struct {
-	DomainName   string
-	BalloonStats BalloonStats
-	VCPUStats    []VCPUStats
-	BlockStats   []BlockStats
-	State        int
-	StateReason  int
-	LastUpdate   int64
+	DomainName     string
+	BalloonStats   BalloonStats
+	VCPUStats      []VCPUStats
+	BlockStats     []BlockStats
+	InterfaceStats []InterfaceStats
+	State          int
+	StateReason    int
+	LastUpdate     int64
 }
 
 // BalloonStats holds memory statistics
@@ -43,4 +44,17 @@ type BlockStats struct {
 	Allocation int64
 	Capacity   int64
 	Physical   int64
+}
+
+// InterfaceStats holds stats for a network interface
+type InterfaceStats struct {
+	Name      string
+	RxBytes   int64
+	RxPackets int64
+	TxBytes   int64
+	TxPackets int64
+	RxDrop    int64
+	RxErrs    int64
+	TxDrop    int64
+	TxErrs    int64
 }

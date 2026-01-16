@@ -22,7 +22,7 @@ func NewVirshCollector() *VirshCollector {
 
 // GetVMStats parses virsh domstats output
 func (c *VirshCollector) GetVMStats(domains []string) ([]VMStats, error) {
-	args := []string{"domstats", "--vcpu", "--balloon", "--block", "--state"}
+	args := []string{"domstats", "--vcpu", "--balloon", "--block", "--interface", "--state"}
 	args = append(args, domains...)
 	cmd := exec.Command("virsh", args...)
 	output, err := cmd.Output()
@@ -89,6 +89,11 @@ func parseVirshOutput(output string) ([]VMStats, error) {
 		// Parse block stats
 		if strings.HasPrefix(key, "block.") {
 			parseBlockStat(key, value, currentStats, &currentBlock)
+		}
+
+		// Parse interface stats
+		if strings.HasPrefix(key, "net.") {
+			parseInterfaceStat(key, value, currentStats)
 		}
 	}
 
@@ -225,6 +230,64 @@ func parseBlockStat(key, value string, stats *VMStats, currentBlock *int) {
 				stats.BlockStats[blockID].WriteReqs = val
 			case "bytes":
 				stats.BlockStats[blockID].WriteBytes = val
+			}
+		}
+	}
+}
+
+func parseInterfaceStat(key, value string, stats *VMStats) {
+	parts := strings.Split(key, ".")
+	if len(parts) < 2 {
+		return
+	}
+
+	if parts[1] == "count" {
+		return
+	}
+
+	ifID, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return
+	}
+
+	// Ensure we have enough interface entries
+	for len(stats.InterfaceStats) <= ifID {
+		stats.InterfaceStats = append(stats.InterfaceStats, InterfaceStats{})
+	}
+
+	if len(parts) >= 3 {
+		metric := parts[2]
+
+		switch metric {
+		case "name":
+			stats.InterfaceStats[ifID].Name = value
+		case "rx":
+			if len(parts) >= 4 {
+				val, _ := strconv.ParseInt(value, 10, 64)
+				switch parts[3] {
+				case "bytes":
+					stats.InterfaceStats[ifID].RxBytes = val
+				case "pkts":
+					stats.InterfaceStats[ifID].RxPackets = val
+				case "errs":
+					stats.InterfaceStats[ifID].RxErrs = val
+				case "drop":
+					stats.InterfaceStats[ifID].RxDrop = val
+				}
+			}
+		case "tx":
+			if len(parts) >= 4 {
+				val, _ := strconv.ParseInt(value, 10, 64)
+				switch parts[3] {
+				case "bytes":
+					stats.InterfaceStats[ifID].TxBytes = val
+				case "pkts":
+					stats.InterfaceStats[ifID].TxPackets = val
+				case "errs":
+					stats.InterfaceStats[ifID].TxErrs = val
+				case "drop":
+					stats.InterfaceStats[ifID].TxDrop = val
+				}
 			}
 		}
 	}
