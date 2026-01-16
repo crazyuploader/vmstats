@@ -1,7 +1,6 @@
 package stats
 
 import (
-	"reflect"
 	"testing"
 )
 
@@ -13,6 +12,8 @@ func TestParseVirshOutput(t *testing.T) {
   balloon.available=16777216
   balloon.usable=16301384
   balloon.rss=1128336
+  state.state=1
+  state.reason=1
   vcpu.current=4
   vcpu.maximum=4
   vcpu.0.state=1
@@ -36,13 +37,26 @@ func TestParseVirshOutput(t *testing.T) {
   block.0.physical=1429151744
 `
 
-	stats, err := parseVirshOutput(output)
+	allStats, err := parseVirshOutput(output)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
+	if len(allStats) != 1 {
+		t.Fatalf("Expected 1 stats entry, got %d", len(allStats))
+	}
+	stats := allStats[0]
+
 	if stats.DomainName != "noble_default" {
 		t.Errorf("Expected domain name 'noble_default', got '%s'", stats.DomainName)
+	}
+
+	// Verify State
+	if stats.State != 1 {
+		t.Errorf("Expected state 1, got %d", stats.State)
+	}
+	if stats.StateReason != 1 {
+		t.Errorf("Expected state reason 1, got %d", stats.StateReason)
 	}
 
 	// Verify Balloon Stats
@@ -76,13 +90,44 @@ func TestParseVirshOutput(t *testing.T) {
 	}
 }
 
+func TestParseVirshOutputMulti(t *testing.T) {
+	output := `Domain: 'vm1'
+  balloon.current=1024
+Domain: 'vm2'
+  balloon.current=2048
+`
+
+	allStats, err := parseVirshOutput(output)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	if len(allStats) != 2 {
+		t.Fatalf("Expected 2 stats entries, got %d", len(allStats))
+	}
+
+	if allStats[0].DomainName != "vm1" {
+		t.Errorf("Expected first domain 'vm1', got '%s'", allStats[0].DomainName)
+	}
+	if allStats[0].BalloonStats.Current != 1024 {
+		t.Errorf("Expected first balloon 1024, got %d", allStats[0].BalloonStats.Current)
+	}
+
+	if allStats[1].DomainName != "vm2" {
+		t.Errorf("Expected second domain 'vm2', got '%s'", allStats[1].DomainName)
+	}
+	if allStats[1].BalloonStats.Current != 2048 {
+		t.Errorf("Expected second balloon 2048, got %d", allStats[1].BalloonStats.Current)
+	}
+}
+
 func TestParseVirshEmpty(t *testing.T) {
 	output := ""
 	stats, err := parseVirshOutput(output)
 	if err != nil {
 		t.Fatalf("Expected no error for empty output, got %v", err)
 	}
-	if !reflect.DeepEqual(stats, &VMStats{}) {
-		t.Errorf("Expected empty stats, got %+v", stats)
+	if len(stats) != 0 {
+		t.Errorf("Expected empty slice, got %d items", len(stats))
 	}
 }

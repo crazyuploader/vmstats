@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/crazyuploader/vmstats/internal/stats"
-
 	"github.com/charmbracelet/lipgloss"
+	"github.com/crazyuploader/vmstats/internal/stats"
 )
 
 var (
@@ -36,36 +35,69 @@ var (
 func renderView(m Model) string {
 	var sb strings.Builder
 
-	// Title
-	title := titleStyle.Render(fmt.Sprintf(" VM Stats Monitor - %s ", m.domain))
-	sb.WriteString(title + "\n\n")
-
 	if m.err != nil {
 		sb.WriteString(errorStyle.Render(fmt.Sprintf("Error: %v\n", m.err)))
 		sb.WriteString("\nPress 'q' to quit\n")
 		return sb.String()
 	}
 
-	if m.stats == nil {
-		sb.WriteString("Loading...\n")
+	if !m.initialized || len(m.allStats) == 0 {
+		sb.WriteString("Loading stats...\n")
 		return sb.String()
 	}
 
-	// Memory section
-	sb.WriteString(renderMemory(m.stats))
-	sb.WriteString("\n\n")
+	currentStats := &m.allStats[m.currentVM]
 
-	// CPU section
-	sb.WriteString(renderCPU(m.stats))
-	sb.WriteString("\n\n")
+	// Title with State
+	stateIcon := "❓"
+	stateText := "Unknown"
+	switch currentStats.State {
+	case 1:
+		stateIcon = "🟢"
+		stateText = "Running"
+	case 2: // Idle
+		stateIcon = "🌙"
+		stateText = "Idle"
+	case 3: // Paused
+		stateIcon = "⏸️"
+		stateText = "Paused"
+	case 5: // Shutoff
+		stateIcon = "🔴"
+		stateText = "Shutoff"
+	case 7: // PMSuspended
+		stateIcon = "💤"
+		stateText = "Suspended"
+	}
 
-	// Disk section
-	sb.WriteString(renderDisk(m.stats))
-	sb.WriteString("\n\n")
+	titleRaw := fmt.Sprintf(" %s %s - %s (%d/%d) ", stateIcon, stateText, currentStats.DomainName, m.currentVM+1, len(m.allStats))
+	title := titleStyle.Render(titleRaw)
+	sb.WriteString(title + "\n\n")
 
-	// Footer
-	footer := fmt.Sprintf("Last updated: %s | Press 'r' to refresh, 'q' to quit",
-		m.lastUpdate.Format("15:04:05"))
+	// If VM is shutoff, don't show metrics
+	if currentStats.State == 5 {
+		sb.WriteString(normalStyle.Render("  VM is currently shut off. Metrics are unavailable.") + "\n\n")
+	} else {
+		// Memory section
+		sb.WriteString(renderMemory(currentStats))
+		sb.WriteString("\n\n")
+
+		// CPU section
+		sb.WriteString(renderCPU(currentStats))
+		sb.WriteString("\n\n")
+
+		// Disk section
+		sb.WriteString(renderDisk(currentStats))
+		sb.WriteString("\n\n")
+	}
+
+	// Help and Footer
+	helpView := m.help.ShortHelpView(m.keys.ShortHelp())
+	if m.showHelp {
+		helpView = m.help.FullHelpView(m.keys.FullHelp())
+	}
+	sb.WriteString(helpView + "\n")
+
+	footer := fmt.Sprintf("Last updated: %s", m.lastUpdate.Format("15:04:05"))
 	sb.WriteString(normalStyle.Render(footer))
 
 	return sb.String()

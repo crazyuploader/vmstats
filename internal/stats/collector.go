@@ -9,7 +9,7 @@ import (
 
 // StatsCollector defines an interface for collecting VM stats
 type StatsCollector interface {
-	GetVMStats(domain string) (*VMStats, error)
+	GetVMStats(domains []string) ([]VMStats, error)
 }
 
 // VirshCollector collects stats using the virsh command
@@ -21,8 +21,10 @@ func NewVirshCollector() *VirshCollector {
 }
 
 // GetVMStats parses virsh domstats output
-func (c *VirshCollector) GetVMStats(domain string) (*VMStats, error) {
-	cmd := exec.Command("virsh", "domstats", "--vcpu", "--balloon", "--block", domain)
+func (c *VirshCollector) GetVMStats(domains []string) ([]VMStats, error) {
+	args := []string{"domstats", "--vcpu", "--balloon", "--block", "--state"}
+	args = append(args, domains...)
+	cmd := exec.Command("virsh", args...)
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute virsh: %w", err)
@@ -31,10 +33,11 @@ func (c *VirshCollector) GetVMStats(domain string) (*VMStats, error) {
 	return parseVirshOutput(string(output))
 }
 
-func parseVirshOutput(output string) (*VMStats, error) {
-	stats := &VMStats{}
+func parseVirshOutput(output string) ([]VMStats, error) {
+	var allStats []VMStats
 	lines := strings.Split(output, "\n")
 
+	var currentStats *VMStats
 	currentVCPU := -1
 	currentBlock := -1
 
@@ -44,9 +47,19 @@ func parseVirshOutput(output string) (*VMStats, error) {
 			continue
 		}
 
-		// Parse domain name
+		// Parse domain name - this indicates start of a new VM
 		if strings.HasPrefix(line, "Domain:") {
-			stats.DomainName = strings.Trim(strings.TrimPrefix(line, "Domain:"), " '")
+			if currentStats != nil {
+				allStats = append(allStats, *currentStats)
+			}
+			currentStats = &VMStats{}
+			currentStats.DomainName = strings.Trim(strings.TrimPrefix(line, "Domain:"), " '")
+			currentVCPU = -1
+			currentBlock = -1
+			continue
+		}
+
+		if currentStats == nil {
 			continue
 		}
 
@@ -58,23 +71,33 @@ func parseVirshOutput(output string) (*VMStats, error) {
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
 
+		// Parse state
+		if strings.HasPrefix(key, "state.") {
+			parseState(key, value, currentStats)
+		}
+
 		// Parse balloon stats
 		if strings.HasPrefix(key, "balloon.") {
-			parseBaloonStat(key, value, stats)
+			parseBaloonStat(key, value, currentStats)
 		}
 
 		// Parse VCPU stats
 		if strings.HasPrefix(key, "vcpu.") {
-			parseVCPUStat(key, value, stats, &currentVCPU)
+			parseVCPUStat(key, value, currentStats, &currentVCPU)
 		}
 
 		// Parse block stats
 		if strings.HasPrefix(key, "block.") {
-			parseBlockStat(key, value, stats, &currentBlock)
+			parseBlockStat(key, value, currentStats, &currentBlock)
 		}
 	}
 
-	return stats, nil
+	// Append the last one
+	if currentStats != nil {
+		allStats = append(allStats, *currentStats)
+	}
+
+	return allStats, nil
 }
 
 func parseBaloonStat(key, value string, stats *VMStats) {
@@ -188,18 +211,30 @@ func parseBlockStat(key, value string, stats *VMStats, currentBlock *int) {
 		metric := parts[3]    // reqs or bytes
 		val, _ := strconv.ParseInt(value, 10, 64)
 
-		if operation == "rd" {
-			if metric == "reqs" {
+		switch operation {
+		case "rd":
+			switch metric {
+			case "reqs":
 				stats.BlockStats[blockID].ReadReqs = val
-			} else if metric == "bytes" {
+			case "bytes":
 				stats.BlockStats[blockID].ReadBytes = val
 			}
-		} else if operation == "wr" {
-			if metric == "reqs" {
+		case "wr":
+			switch metric {
+			case "reqs":
 				stats.BlockStats[blockID].WriteReqs = val
-			} else if metric == "bytes" {
+			case "bytes":
 				stats.BlockStats[blockID].WriteBytes = val
 			}
 		}
+	}
+}
+func parseState(key, value string, stats *VMStats) {
+	val, _ := strconv.Atoi(value)
+	switch key {
+	case "state.state":
+		stats.State = val
+	case "state.reason":
+		stats.StateReason = val
 	}
 }

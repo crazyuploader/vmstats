@@ -6,6 +6,8 @@ type VMStats struct {
 	BalloonStats BalloonStats
 	VCPUStats    []VCPUStats
 	BlockStats   []BlockStats
+	State        int
+	StateReason  int
 	LastUpdate   int64
 }
 
