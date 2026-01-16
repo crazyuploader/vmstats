@@ -13,21 +13,22 @@ import (
 type tickMsg time.Time
 
 type keyMap struct {
-	NextVM  key.Binding
-	PrevVM  key.Binding
-	Refresh key.Binding
-	Quit    key.Binding
-	Help    key.Binding
+	NextVM      key.Binding
+	PrevVM      key.Binding
+	Refresh     key.Binding
+	TogglePause key.Binding
+	Quit        key.Binding
+	Help        key.Binding
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.PrevVM, k.NextVM, k.Refresh, k.Quit, k.Help}
+	return []key.Binding{k.PrevVM, k.NextVM, k.Refresh, k.TogglePause, k.Quit, k.Help}
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.PrevVM, k.NextVM},
-		{k.Refresh, k.Quit, k.Help},
+		{k.Refresh, k.TogglePause, k.Quit, k.Help},
 	}
 }
 
@@ -46,6 +47,7 @@ type Model struct {
 	refreshRate time.Duration
 	width       int
 	height      int
+	paused      bool
 }
 
 func InitialModel(domains []string, collector stats.StatsCollector, refreshRate time.Duration) Model {
@@ -70,6 +72,10 @@ var keys = keyMap{
 	Refresh: key.NewBinding(
 		key.WithKeys("r"),
 		key.WithHelp("r", "refresh"),
+	),
+	TogglePause: key.NewBinding(
+		key.WithKeys("p"),
+		key.WithHelp("p", "pause/resume"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),
@@ -107,12 +113,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.showHelp = !m.showHelp
 		case key.Matches(msg, m.keys.Refresh):
 			return m, fetchStats(m.collector, m.domains)
+		case key.Matches(msg, m.keys.TogglePause):
+			m.paused = !m.paused
+			return m, nil
 		}
 
 	case tickMsg:
+		var cmd tea.Cmd
+		if !m.paused {
+			cmd = fetchStats(m.collector, m.domains)
+		}
 		return m, tea.Batch(
 			m.tickCmd(),
-			fetchStats(m.collector, m.domains),
+			cmd,
 		)
 
 	case []stats.VMStats:

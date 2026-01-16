@@ -104,7 +104,12 @@ func renderView(m Model) string {
 		helpView = m.help.FullHelpView(m.keys.FullHelp())
 	}
 	footer.WriteString(mutedStyle.Render(helpView) + "\n")
-	footer.WriteString(mutedStyle.Render(fmt.Sprintf("Last updated: %s", m.lastUpdate.Format("15:04:05"))))
+
+	lastUpdated := fmt.Sprintf("Last updated: %s", m.lastUpdate.Format("15:04:05"))
+	if m.paused {
+		lastUpdated += " " + errorStyle.Render("[PAUSED]")
+	}
+	footer.WriteString(mutedStyle.Render(lastUpdated))
 
 	return mainViewStyled + "\n" + footer.String()
 }
@@ -137,7 +142,28 @@ func renderVMList(m Model, height int) string {
 	}
 
 	content := strings.Join(vmItems, "\n")
-	return vmListStyle.Height(height).Render(sb.String() + content)
+
+	// Resource Summary
+	running := 0
+	totalCPUs := 0
+	totalMem := int64(0)
+
+	for _, vm := range m.allStats {
+		if vm.State == VMStateRunning {
+			running++
+		}
+		totalCPUs += len(vm.VCPUStats)
+		totalMem += vm.BalloonStats.Current * 1024
+	}
+
+	summary := fmt.Sprintf("\n%s\nRunning: %d/%d\nCPUs: %d | Mem: %s",
+		mutedStyle.Render(strings.Repeat("─", 20)),
+		running, len(m.allStats),
+		totalCPUs, formatBytes(totalMem),
+	)
+
+	finalContent := sb.String() + content + summary
+	return vmListStyle.Height(height).Render(finalContent)
 }
 
 func renderMainContent(m Model, currentStats *stats.VMStats, stateInfo VMStateInfo, width int, compact bool) string {
