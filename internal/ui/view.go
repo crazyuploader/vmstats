@@ -175,7 +175,11 @@ func renderMainContent(m Model, currentStats *stats.VMStats, stateInfo VMStateIn
 	}
 
 	// Title with state
-	titleRaw := fmt.Sprintf(" %s %s • %s ", stateInfo.Icon, stateInfo.Text, currentStats.DomainName)
+	osType := ""
+	if currentStats.OSType != "" {
+		osType = fmt.Sprintf("• %s ", currentStats.OSType)
+	}
+	titleRaw := fmt.Sprintf(" %s %s %s• %s ", stateInfo.Icon, stateInfo.Text, osType, currentStats.DomainName)
 	title := titleStyle.Width(width).Render(titleRaw)
 	sb.WriteString(title + spacing)
 
@@ -267,8 +271,8 @@ func renderCPU(vmStats *stats.VMStats, width, innerWidth int, compact bool) stri
 	cpuInfo := fmt.Sprintf("vCPUs: %d\n\n", len(vmStats.VCPUStats))
 
 	// Adjust column spacing based on width if needed, for now keep fixed
-	cpuInfo += fmt.Sprintf("%-5s %-9s %-12s %-10s %-10s\n",
-		"ID", "State", "Time", "Exits", "I/O Exits")
+	cpuInfo += fmt.Sprintf("%-5s %-9s %-8s %-12s %-10s %-10s\n",
+		"ID", "State", "Usage", "Time", "Exits", "I/O Exits")
 	cpuInfo += mutedStyle.Render(strings.Repeat("─", innerWidth)) + "\n"
 
 	maxDisplay := 6
@@ -284,9 +288,20 @@ func renderCPU(vmStats *stats.VMStats, width, innerWidth int, compact bool) stri
 		if vcpu.State == 0 {
 			stateStr = mutedStyle.Render("offline")
 		}
-		cpuInfo += fmt.Sprintf("%-5d %-9s %-12s %-10d %-10d\n",
+
+		// Colorize usage
+		usageStr := fmt.Sprintf("%.1f%%", vcpu.Usage)
+		switch {
+		case vcpu.Usage >= 90:
+			usageStr = errorStyle.Render(usageStr)
+		case vcpu.Usage >= 50:
+			usageStr = lipgloss.NewStyle().Foreground(ColorWarning).Render(usageStr)
+		}
+
+		cpuInfo += fmt.Sprintf("%-5d %-9s %-8s %-12s %-10d %-10d\n",
 			vcpu.ID,
 			stateStr,
+			usageStr,
 			formatDuration(vcpu.Time),
 			vcpu.Exits,
 			vcpu.IOExits,

@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // StatsCollector defines an interface for collecting VM stats
@@ -30,7 +31,21 @@ func (c *VirshCollector) GetVMStats(domains []string) ([]VMStats, error) {
 		return nil, fmt.Errorf("failed to execute virsh: %w", err)
 	}
 
-	return parseVirshOutput(string(output))
+	stats, err := parseVirshOutput(string(output))
+	if err != nil {
+		return nil, err
+	}
+
+	// Set timestamp for CPU calculation
+	now := time.Now().UnixNano()
+	for i := range stats {
+		stats[i].LastUpdate = now
+	}
+
+	enrichWithIPs(stats)
+	enrichWithOSType(stats)
+
+	return stats, nil
 }
 
 func parseVirshOutput(output string) ([]VMStats, error) {
@@ -300,6 +315,8 @@ func parseState(key, value string, stats *VMStats) {
 	switch key {
 	case "state.state":
 		stats.State = val
+	case "state.reason":
+		stats.StateReason = val
 	}
 }
 
@@ -349,6 +366,27 @@ func parseDomIfAddr(output string, vm *VMStats) {
 					vm.InterfaceStats[j].IPs = append(vm.InterfaceStats[j].IPs, address)
 					break
 				}
+			}
+		}
+	}
+}
+
+func enrichWithOSType(vms []VMStats) {
+	for i := range vms {
+		cmd := exec.Command("virsh", "dominfo", vms[i].DomainName)
+		output, err := cmd.Output()
+		if err != nil {
+			continue
+		}
+
+		lines := strings.Split(string(output), "\n")
+		for _, line := range lines {
+			if strings.Contains(line, "OS Type:") {
+				parts := strings.Split(line, ":")
+				if len(parts) > 1 {
+					vms[i].OSType = strings.TrimSpace(parts[1])
+				}
+				break
 			}
 		}
 	}

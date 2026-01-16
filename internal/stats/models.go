@@ -3,6 +3,7 @@ package stats
 // VMStats holds all the statistics for a domain
 type VMStats struct {
 	DomainName     string
+	OSType         string
 	BalloonStats   BalloonStats
 	VCPUStats      []VCPUStats
 	BlockStats     []BlockStats
@@ -31,6 +32,7 @@ type VCPUStats struct {
 	HaltExits int64
 	IRQExits  int64
 	IOExits   int64
+	Usage     float64
 }
 
 // BlockStats holds stats for a block device

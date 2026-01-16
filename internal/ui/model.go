@@ -129,6 +129,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 
 	case []stats.VMStats:
+		// Calculate CPU usage if we have previous stats
+		if len(m.allStats) > 0 {
+			calculateCPUUsage(msg, m.allStats)
+		}
+
 		sortVMs(msg)
 		m.allStats = msg
 		m.lastUpdate = time.Now()
@@ -200,5 +205,49 @@ func getVMPriority(state int) int {
 		return 0
 	default:
 		return 1
+	}
+}
+
+func calculateCPUUsage(newStats, oldStats []stats.VMStats) {
+	// Create map for fast lookup of old stats
+	oldMap := make(map[string]stats.VMStats)
+	for _, vm := range oldStats {
+		oldMap[vm.DomainName] = vm
+	}
+
+	for i := range newStats {
+		vm := &newStats[i]
+		oldVM, ok := oldMap[vm.DomainName]
+		if !ok {
+			continue
+		}
+
+		// Time passed between updates in nanoseconds
+		deltaFuncTime := vm.LastUpdate - oldVM.LastUpdate
+		if deltaFuncTime <= 0 {
+			continue
+		}
+
+		for j := range vm.VCPUStats {
+			if j >= len(oldVM.VCPUStats) {
+				break
+			}
+
+			// CPU time is in nanoseconds
+			deltaCPUTime := vm.VCPUStats[j].Time - oldVM.VCPUStats[j].Time
+			if deltaCPUTime < 0 {
+				continue
+			}
+
+			// Usage % = (delta CPU time / delta Wall time) * 100
+			usage := (float64(deltaCPUTime) / float64(deltaFuncTime)) * 100.0
+
+			// Cap at 100% per core
+			if usage > 100.0 {
+				usage = 100.0
+			}
+
+			vm.VCPUStats[j].Usage = usage
+		}
 	}
 }
