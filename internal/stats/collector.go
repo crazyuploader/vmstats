@@ -117,9 +117,6 @@ func parseVirshOutput(output string) ([]VMStats, error) {
 		allStats = append(allStats, *currentStats)
 	}
 
-	// Fetch IP addresses for running VMs
-	enrichWithIPs(allStats)
-
 	return allStats, nil
 }
 
