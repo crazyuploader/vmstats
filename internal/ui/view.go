@@ -379,11 +379,18 @@ func renderNetwork(vmStats *stats.VMStats, width, innerWidth int, compact bool) 
 			continue
 		}
 
+		ipStr := ""
+		if len(net.IPs) > 0 {
+			ipStr = fmt.Sprintf("   📍 IPs: %s\n", strings.Join(net.IPs, ", "))
+		}
+
 		netInfo += fmt.Sprintf(
 			"📡 %s\n"+
+				"%s"+
 				"   ⬇ Rx: %s (%d pkts) │ ❌ %d errs\n"+
 				"   ⬆ Tx: %s (%d pkts) │ ❌ %d errs\n",
 			net.Name,
+			ipStr,
 			formatBytes(net.RxBytes),
 			net.RxPackets,
 			net.RxErrs+net.RxDrop,

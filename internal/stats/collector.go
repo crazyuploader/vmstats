@@ -102,6 +102,9 @@ func parseVirshOutput(output string) ([]VMStats, error) {
 		allStats = append(allStats, *currentStats)
 	}
 
+	// Fetch IP addresses for running VMs
+	enrichWithIPs(allStats)
+
 	return allStats, nil
 }
 
@@ -297,7 +300,56 @@ func parseState(key, value string, stats *VMStats) {
 	switch key {
 	case "state.state":
 		stats.State = val
-	case "state.reason":
-		stats.StateReason = val
+	}
+}
+
+func enrichWithIPs(vms []VMStats) {
+	for i := range vms {
+		// Only check IPs for running VMs (State == 1)
+		if vms[i].State != 1 {
+			continue
+		}
+
+		cmd := exec.Command("virsh", "domifaddr", vms[i].DomainName, "--full", "--source", "lease")
+		output, err := cmd.Output()
+		if err != nil {
+			// Try without source arg if lease fails, or maybe agent
+			// For now, just ignore errors as IPs are "nice to have"
+			continue
+		}
+
+		parseDomIfAddr(string(output), &vms[i])
+	}
+}
+
+func parseDomIfAddr(output string, vm *VMStats) {
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "Name") || strings.HasPrefix(line, "-") {
+			continue
+		}
+
+		// Expected format: interface MAC protocol address
+		// vnet0 52:54:00:12:34:56 ipv4 192.168.122.238/24
+		fields := strings.Fields(line)
+		if len(fields) >= 4 {
+			ifName := fields[0]
+			// protocol := fields[2]
+			address := fields[3]
+
+			// Strip CIDR from address if present
+			if idx := strings.Index(address, "/"); idx != -1 {
+				address = address[:idx]
+			}
+
+			// Find matching interface in stats and append IP
+			for j := range vm.InterfaceStats {
+				if vm.InterfaceStats[j].Name == ifName {
+					vm.InterfaceStats[j].IPs = append(vm.InterfaceStats[j].IPs, address)
+					break
+				}
+			}
+		}
 	}
 }

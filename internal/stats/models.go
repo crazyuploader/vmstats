@@ -57,4 +57,5 @@ type InterfaceStats struct {
 	RxErrs    int64
 	TxDrop    int64
 	TxErrs    int64
+	IPs       []string
 }
