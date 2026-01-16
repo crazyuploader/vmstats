@@ -274,7 +274,7 @@ func renderCPU(vmStats *stats.VMStats, width, innerWidth int, compact bool) stri
 func renderDisk(vmStats *stats.VMStats, width, innerWidth int, compact bool) string {
 	var sb strings.Builder
 
-	sb.WriteString(headerStyle.Render("💿 Disk") + "\n")
+	sb.WriteString(headerStyle.Render("💿 Virtual Disks (Host)") + "\n")
 
 	style := boxStyle.Width(width)
 	if compact {
@@ -287,9 +287,25 @@ func renderDisk(vmStats *stats.VMStats, width, innerWidth int, compact bool) str
 	}
 
 	var diskInfo string
-	for _, disk := range vmStats.BlockStats {
+	// Limit number of disks displayed to prevent overflow
+	maxDisks := 4
+	if compact {
+		maxDisks = 2
+	}
+
+	for i, disk := range vmStats.BlockStats {
+		if i >= maxDisks {
+			diskInfo += mutedStyle.Render(fmt.Sprintf("... and %d more disks\n", len(vmStats.BlockStats)-maxDisks))
+			break
+		}
+
 		if disk.Name == "" {
 			continue
+		}
+
+		// Add separator if not the first item
+		if i > 0 {
+			diskInfo += "\n"
 		}
 
 		usagePercent := float64(0)
@@ -304,7 +320,7 @@ func renderDisk(vmStats *stats.VMStats, width, innerWidth int, compact bool) str
 
 		diskInfo += fmt.Sprintf(
 			"📀 %s\n"+
-				"   Size: %s / %s %s %.1f%%\n"+
+				"   Phys: %s / Max: %s %s %.1f%%\n"+
 				"   I/O:  ⬇ %s (%d ops) │ ⬆ %s (%d ops)\n",
 			disk.Name,
 			formatBytes(disk.Allocation),
