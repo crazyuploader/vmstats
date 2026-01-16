@@ -7,12 +7,12 @@ A beautiful terminal UI for monitoring libvirt/KVM virtual machine statistics in
 
 ## Features
 
--   📊 **Real-time monitoring** of VM memory, CPU, and disk usage
--   🎨 **Color-coded progress bars** (green/yellow/red based on thresholds)
--   📋 **VM sidebar** showing all VMs at a glance with status icons
--   ⚡ **Configurable refresh rate**
--   🔄 **Multi-VM navigation** with keyboard shortcuts
--   💤 **Smart display** - hides irrelevant metrics for offline VMs
+- 📊 **Real-time monitoring** of VM memory, CPU, and disk usage
+- 🎨 **Color-coded progress bars** (green/yellow/red based on thresholds)
+- 📋 **VM sidebar** showing all VMs at a glance with status icons
+- ⚡ **Configurable refresh rate**
+- 🔄 **Multi-VM navigation** with keyboard shortcuts
+- 💤 **Smart display** - hides irrelevant metrics for offline VMs
 
 ## Installation
 
@@ -26,9 +26,9 @@ make build
 
 ### Requirements
 
--   Go 1.21+
--   `virsh` command (libvirt)
--   Running libvirt daemon
+- Go 1.21+
+- `virsh` command (libvirt)
+- Running libvirt daemon
 
 ## Usage
 
