@@ -45,7 +45,7 @@ func renderView(m Model) string {
 
 	// Main layout: sidebar + content
 	sidebar := renderVMList(m, contentHeight)
-	content := renderMainContent(m, currentStats, stateInfo, contentWidth, compactMode)
+	content := renderMainContent(currentStats, stateInfo, contentWidth, compactMode)
 
 	// Combine sidebar and content horizontally, then constrain height
 	mainView := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, "  ", content)

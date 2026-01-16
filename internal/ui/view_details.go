@@ -8,7 +8,7 @@ import (
 	"github.com/crazyuploader/vmstats/internal/stats"
 )
 
-func renderMainContent(m Model, currentStats *stats.VMStats, stateInfo VMStateInfo, width int, compact bool) string {
+func renderMainContent(currentStats *stats.VMStats, stateInfo VMStateInfo, width int, compact bool) string {
 	var sb strings.Builder
 
 	spacing := "\n\n"
@@ -49,7 +49,7 @@ func renderMainContent(m Model, currentStats *stats.VMStats, stateInfo VMStateIn
 	sb.WriteString(spacing)
 
 	// Network section
-	sb.WriteString(renderNetwork(currentStats, width, innerWidth, compact))
+	sb.WriteString(renderNetwork(currentStats, width, compact))
 
 	return sb.String()
 }
@@ -237,7 +237,7 @@ func renderDisk(vmStats *stats.VMStats, width, innerWidth int, compact bool) str
 	return sb.String()
 }
 
-func renderNetwork(vmStats *stats.VMStats, width, innerWidth int, compact bool) string {
+func renderNetwork(vmStats *stats.VMStats, width int, compact bool) string {
 	var sb strings.Builder
 
 	sb.WriteString(headerStyle.Render("🌐 Network") + "\n")

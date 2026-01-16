@@ -53,8 +53,6 @@ func parseVirshOutput(output string) ([]VMStats, error) {
 	lines := strings.Split(output, "\n")
 
 	var currentStats *VMStats
-	currentVCPU := -1
-	currentBlock := -1
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -69,8 +67,6 @@ func parseVirshOutput(output string) ([]VMStats, error) {
 			}
 			currentStats = &VMStats{}
 			currentStats.DomainName = strings.Trim(strings.TrimPrefix(line, "Domain:"), " '")
-			currentVCPU = -1
-			currentBlock = -1
 			continue
 		}
 
@@ -98,12 +94,12 @@ func parseVirshOutput(output string) ([]VMStats, error) {
 
 		// Parse VCPU stats
 		if strings.HasPrefix(key, "vcpu.") {
-			parseVCPUStat(key, value, currentStats, &currentVCPU)
+			parseVCPUStat(key, value, currentStats)
 		}
 
 		// Parse block stats
 		if strings.HasPrefix(key, "block.") {
-			parseBlockStat(key, value, currentStats, &currentBlock)
+			parseBlockStat(key, value, currentStats)
 		}
 
 		// Parse interface stats
@@ -138,7 +134,7 @@ func parseBaloonStat(key, value string, stats *VMStats) {
 	}
 }
 
-func parseVCPUStat(key, value string, stats *VMStats, currentVCPU *int) {
+func parseVCPUStat(key, value string, stats *VMStats) {
 	parts := strings.Split(key, ".")
 	if len(parts) < 2 {
 		return
@@ -186,7 +182,7 @@ func parseVCPUStat(key, value string, stats *VMStats, currentVCPU *int) {
 	}
 }
 
-func parseBlockStat(key, value string, stats *VMStats, currentBlock *int) {
+func parseBlockStat(key, value string, stats *VMStats) {
 	parts := strings.Split(key, ".")
 	if len(parts) < 2 {
 		return
