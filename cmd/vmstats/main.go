@@ -19,7 +19,7 @@ func main() {
 	// Parse flags
 	domainsFlag := flag.String("domains", "", "Comma-separated list of libvirt domains to monitor (empty for all)")
 	logFile := flag.String("log", "", "Log file path (optional)")
-	refreshRate := flag.Int("refresh", ui.DefaultRefreshRate, "Refresh rate in seconds")
+	refreshInterval := flag.String("interval", "2s", "Refresh interval (e.g., 500ms, 1s, 2s)")
 	showVersion := flag.Bool("version", false, "Show version and exit")
 	flag.Parse()
 
@@ -29,9 +29,15 @@ func main() {
 		return
 	}
 
-	// Validate refresh rate
-	if *refreshRate < 1 {
-		*refreshRate = 1
+	// Parse refresh interval
+	duration, err := time.ParseDuration(*refreshInterval)
+	if err != nil {
+		fmt.Printf("Invalid interval format: %v\n", err)
+		os.Exit(1)
+	}
+	if duration < 500*time.Millisecond {
+		duration = 500 * time.Millisecond
+		fmt.Println("Warning: Interval too low, setting to 500ms")
 	}
 
 	// Parse domains
@@ -61,16 +67,16 @@ func main() {
 	}
 
 	if len(domains) > 0 {
-		log.Printf("Starting vmstats for domains: %v (refresh: %ds)", domains, *refreshRate)
+		log.Printf("Starting vmstats for domains: %v (refresh: %s)", domains, duration)
 	} else {
-		log.Printf("Starting vmstats for ALL domains (refresh: %ds)", *refreshRate)
+		log.Printf("Starting vmstats for ALL domains (refresh: %s)", duration)
 	}
 
 	// Initialize collector
 	collector := stats.NewVirshCollector()
 
 	// Initialize Bubble Tea program
-	model := ui.InitialModel(domains, collector, time.Duration(*refreshRate)*time.Second)
+	model := ui.InitialModel(domains, collector, duration)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {
