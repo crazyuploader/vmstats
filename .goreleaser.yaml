@@ -53,7 +53,7 @@ homebrew_casks:
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"
     name: vmstats
     homepage: "https://github.com/crazyuploader/vmstats"
-    description: "A beautiful terminal UI for monitoring libvirt/KVM virtual machine statistics"
+    description: "Beautiful terminal UI for monitoring libvirt/KVM virtual machine statistics"
     license: "MIT"
     binaries:
       - vmstats

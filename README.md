@@ -1,6 +1,6 @@
 # vmstats
 
-A beautiful terminal UI for monitoring libvirt/KVM virtual machine statistics in real-time.
+Beautiful terminal UI for monitoring libvirt/KVM virtual machine statistics in real-time.
 
 ![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)
 ![License](https://img.shields.io/badge/license-MIT-blue)
