@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"sort"
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -115,6 +116,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 
 	case []stats.VMStats:
+		sortVMs(msg)
 		m.allStats = msg
 		m.lastUpdate = time.Now()
 		m.err = nil
@@ -160,5 +162,30 @@ func fetchStats(collector stats.StatsCollector, domains []string) tea.Cmd {
 			return err
 		}
 		return vmStats
+	}
+}
+
+func sortVMs(vms []stats.VMStats) {
+	sort.Slice(vms, func(i, j int) bool {
+		// Define priority: Running/Idle/Paused are "active" (priority 0)
+		// Others like Shutoff are "inactive" (priority 1)
+		p1 := getVMPriority(vms[i].State)
+		p2 := getVMPriority(vms[j].State)
+
+		if p1 != p2 {
+			return p1 < p2
+		}
+
+		// Secondary sort by name
+		return vms[i].DomainName < vms[j].DomainName
+	})
+}
+
+func getVMPriority(state int) int {
+	switch state {
+	case VMStateRunning, VMStateIdle, VMStatePaused:
+		return 0
+	default:
+		return 1
 	}
 }
