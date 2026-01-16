@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -17,7 +18,7 @@ import (
 func main() {
 	// Parse flags
 	domainsFlag := flag.String("domains", "", "Comma-separated list of libvirt domains to monitor (empty for all)")
-	logFile := flag.String("log", "vmstats.log", "Log file path")
+	logFile := flag.String("log", "", "Log file path (optional)")
 	refreshRate := flag.Int("refresh", ui.DefaultRefreshRate, "Refresh rate in seconds")
 	showVersion := flag.Bool("version", false, "Show version and exit")
 	flag.Parse()
@@ -43,17 +44,21 @@ func main() {
 	}
 
 	// Setup logging
-	f, err := os.OpenFile(*logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		fmt.Printf("Error opening log file: %v\n", err)
-		os.Exit(1)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			fmt.Printf("Error closing log file: %v\n", err)
+	if *logFile != "" {
+		f, err := os.OpenFile(*logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			fmt.Printf("Error opening log file: %v\n", err)
+			os.Exit(1)
 		}
-	}()
-	log.SetOutput(f)
+		defer func() {
+			if err := f.Close(); err != nil {
+				fmt.Printf("Error closing log file: %v\n", err)
+			}
+		}()
+		log.SetOutput(f)
+	} else {
+		log.SetOutput(io.Discard)
+	}
 
 	if len(domains) > 0 {
 		log.Printf("Starting vmstats for domains: %v (refresh: %ds)", domains, *refreshRate)

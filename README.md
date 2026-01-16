@@ -42,6 +42,9 @@ make build
 # Custom refresh rate (5 seconds)
 ./bin/vmstats -refresh 5
 
+# Enable logging to file (optional)
+./bin/vmstats -log vmstats.log
+
 # Show version
 ./bin/vmstats --version
 ```
