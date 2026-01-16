@@ -53,8 +53,8 @@ make build
 
 | Key                     | Action         |
 | ----------------------- | -------------- |
-| `→` / `n` / `Tab`       | Next VM        |
-| `←` / `p` / `Shift+Tab` | Previous VM    |
+| `↓` / `j` / `Tab`       | Next VM        |
+| `↑` / `k` / `Shift+Tab` | Previous VM    |
 | `r`                     | Manual refresh |
 | `?`                     | Toggle help    |
 | `q` / `Ctrl+C`          | Quit           |

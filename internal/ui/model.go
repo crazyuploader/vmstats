@@ -30,29 +30,6 @@ func (k keyMap) FullHelp() [][]key.Binding {
 	}
 }
 
-var keys = keyMap{
-	NextVM: key.NewBinding(
-		key.WithKeys("tab", "n", "l", "right"),
-		key.WithHelp("→/n", "next"),
-	),
-	PrevVM: key.NewBinding(
-		key.WithKeys("shift+tab", "p", "h", "left"),
-		key.WithHelp("←/p", "prev"),
-	),
-	Refresh: key.NewBinding(
-		key.WithKeys("r"),
-		key.WithHelp("r", "refresh"),
-	),
-	Quit: key.NewBinding(
-		key.WithKeys("q", "ctrl+c"),
-		key.WithHelp("q", "quit"),
-	),
-	Help: key.NewBinding(
-		key.WithKeys("?"),
-		key.WithHelp("?", "help"),
-	),
-}
-
 type Model struct {
 	collector   stats.StatsCollector
 	allStats    []stats.VMStats
@@ -66,6 +43,8 @@ type Model struct {
 	showHelp    bool
 	initialized bool
 	refreshRate time.Duration
+	width       int
+	height      int
 }
 
 func InitialModel(domains []string, collector stats.StatsCollector, refreshRate time.Duration) Model {
@@ -76,6 +55,29 @@ func InitialModel(domains []string, collector stats.StatsCollector, refreshRate 
 		help:        help.New(),
 		refreshRate: refreshRate,
 	}
+}
+
+var keys = keyMap{
+	NextVM: key.NewBinding(
+		key.WithKeys("down", "j", "tab"),
+		key.WithHelp("↓/j", "next"),
+	),
+	PrevVM: key.NewBinding(
+		key.WithKeys("up", "k", "shift+tab"),
+		key.WithHelp("↑/k", "prev"),
+	),
+	Refresh: key.NewBinding(
+		key.WithKeys("r"),
+		key.WithHelp("r", "refresh"),
+	),
+	Quit: key.NewBinding(
+		key.WithKeys("q", "ctrl+c"),
+		key.WithHelp("q", "quit"),
+	),
+	Help: key.NewBinding(
+		key.WithKeys("?"),
+		key.WithHelp("?", "help"),
+	),
 }
 
 func (m Model) Init() tea.Cmd {
@@ -123,6 +125,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentVM = 0
 		}
 		return m, nil
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		m.help.Width = msg.Width
 
 	case error:
 		m.err = msg
