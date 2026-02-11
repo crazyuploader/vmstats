@@ -13,7 +13,7 @@ cache:
 
 build:
   stage: build
-  image: golang:1.25
+  image: golang:1.26
   script:
     - make build
   artifacts:
@@ -22,7 +22,7 @@ build:
 
 test:
   stage: test
-  image: golang:1.25
+  image: golang:1.26
   script:
     - go test -v ./...
 
